@@ -59,7 +59,7 @@ class OrpheusModel:
         engine_args = AsyncEngineArgs(
             model=self.model_name,
             dtype=half,
-            max_model_len=53200,
+            max_model_len=52400,
             **self.engine_kwargs
         )
         
