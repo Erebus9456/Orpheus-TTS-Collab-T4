@@ -56,7 +56,7 @@ class OrpheusModel:
             return model_name
         
     def _setup_engine(self):
-        printf("Model Max Length = 52400")
+        print("Model Max Length = 52400")
         engine_args = AsyncEngineArgs(
             model=self.model_name,
             dtype=half,
