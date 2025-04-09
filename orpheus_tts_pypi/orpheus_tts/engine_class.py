@@ -58,7 +58,8 @@ class OrpheusModel:
     def _setup_engine(self):
         engine_args = AsyncEngineArgs(
             model=self.model_name,
-            dtype=self.dtype,
+            dtype=half,
+            max_model_len=126687,
             **self.engine_kwargs
         )
         
