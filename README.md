@@ -18,7 +18,6 @@ This forked version is hosted here:
 ### ✅ Setup
 
 ```python
-%%capture
 !git clone https://github.com/Erebus9456/Orpheus-TTS-Collab-T4.git
 !cd Orpheus-TTS-Collab-T4/orpheus_tts_pypi && pip install .
 
