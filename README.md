@@ -1,138 +1,106 @@
-# Orpheus TTS
+---
+
+# Orpheus TTS – Colab T4 Edition
+
 ## Overview
-Orpheus TTS is an open-source text-to-speech system built on the Llama-3b backbone. Orpheus demonstrates the emergent capabilities of using LLMs for speech synthesis. We offer comparisons of the models below to leading closed models like Eleven Labs and PlayHT in our blog post.
 
-[Check out our blog post](https://canopylabs.ai/model-releases)
+Orpheus TTS is an open-source text-to-speech system built on the LLaMA 3B backbone. This version has been **forked and modified** to work seamlessly with **Google Colab's free-tier T4 GPU**, enabling fast and efficient speech synthesis even without high-end hardware.
 
+Read more about the original project and comparisons with closed models like Eleven Labs and PlayHT in the [official blog post](https://canopylabs.ai/model-releases).
 
-https://github.com/user-attachments/assets/ce17dd3a-f866-4e67-86e4-0025e6e87b8a
+---
 
-## Abilities
+## 🚀 Quickstart on Colab (T4 Compatible)
 
-- **Human-Like Speech**: Natural intonation, emotion, and rhythm that is superior to SOTA closed source models
-- **Zero-Shot Voice Cloning**: Clone voices without prior fine-tuning
-- **Guided Emotion and Intonation**: Control speech and emotion characteristics with simple tags
-- **Low Latency**: ~200ms streaming latency for realtime applications, reducible to ~100ms with input streaming
+This forked version is hosted here:
+👉 [Orpheus-TTS-Collab-T4 (GitHub)](https://github.com/Erebus9456/Orpheus-TTS-Collab-T4)
 
-## Models
+### ✅ Setup
 
-We provide three models in this release, and additionally we offer the data processing scripts and sample datasets to make it very straightforward to create your own finetune.
+```python
+%%capture
+!git clone https://github.com/Erebus9456/Orpheus-TTS-Collab-T4.git
+!cd Orpheus-TTS-Collab-T4/orpheus_tts_pypi && pip install .
 
-1. [**Finetuned Prod**](https://huggingface.co/canopylabs/orpheus-tts-0.1-finetune-prod) – A finetuned model for everyday TTS applications
+!pip install -U "huggingface_hub[cli]"
+!huggingface-cli login
+```
 
-2. [**Pretrained**](https://huggingface.co/canopylabs/orpheus-tts-0.1-pretrained) – Our base model trained on 100k+ hours of English speech data
+### ✅ Usage
 
+```python
+from orpheus_tts import OrpheusModel
+from vllm import AsyncEngineArgs, AsyncLLMEngine
+import wave
+import time
+import types
 
-### Inference
+# Define patched setup engine function
+def patched_setup_engine(self):
+    engine_args = AsyncEngineArgs(
+        model=self.model_name,
+        dtype=self.dtype,
+        max_model_len=52400  # Set to match T4's memory limit
+    )
+    return AsyncLLMEngine.from_engine_args(engine_args)
 
-#### Simple setup on colab
-1. [Colab For Tuned Model](https://colab.research.google.com/drive/1KhXT56UePPUHhqitJNUxq63k-pQomz3N?usp=sharing) (not streaming, see below for realtime streaming) – A finetuned model for everyday TTS applications.
-2. [Colab For Pretrained Model](https://colab.research.google.com/drive/10v9MIEbZOr_3V8ZcPAIh8MN7q2LjcstS?usp=sharing) – This notebook is set up for conditioned generation but can be extended to a range of tasks.
+# Initialize model
+model = OrpheusModel(
+    model_name="canopylabs/orpheus-tts-0.1-finetune-prod",
+    dtype="half"  # Use float16 for Tesla T4 compatibility
+)
 
-#### Streaming Inference Example
+# Monkeypatch engine
+model._setup_engine = types.MethodType(patched_setup_engine, model)
 
-1. Clone this repo
-   ```bash
-   git clone https://github.com/canopyai/Orpheus-TTS.git
-   ```
-2. Navigate and install packages
-   ```bash
-   cd Orpheus-TTS && pip install orpheus-speech # uses vllm under the hood for fast inference
-   ```
-   vllm pushed a slightly buggy version on March 18th so some bugs are being resolved by reverting to `pip install vllm==0.7.3` after `pip install orpheus-speech`
-4. Run the example below:
-   ```python
-   from orpheus_tts import OrpheusModel
-   import wave
-   import time
-   
-   model = OrpheusModel(model_name ="canopylabs/orpheus-tts-0.1-finetune-prod")
-   prompt = '''Man, the way social media has, um, completely changed how we interact is just wild, right? Like, we're all connected 24/7 but somehow people feel more alone than ever. And don't even get me started on how it's messing with kids' self-esteem and mental health and whatnot.'''
+# Example prompt
+prompt = '''"I have heard that Sanaubar's suggestive stride and oscillating hips sent men to reveries of infidelity..."'''
 
-   start_time = time.monotonic()
-   syn_tokens = model.generate_speech(
-      prompt=prompt,
-      voice="tara",
-      )
+start_time = time.monotonic()
+syn_tokens = model.generate_speech(prompt=prompt, voice="tara")
 
-   with wave.open("output.wav", "wb") as wf:
-      wf.setnchannels(1)
-      wf.setsampwidth(2)
-      wf.setframerate(24000)
+with wave.open("output.wav", "wb") as wf:
+    wf.setnchannels(1)
+    wf.setsampwidth(2)
+    wf.setframerate(24000)
 
-      total_frames = 0
-      chunk_counter = 0
-      for audio_chunk in syn_tokens: # output streaming
-         chunk_counter += 1
-         frame_count = len(audio_chunk) // (wf.getsampwidth() * wf.getnchannels())
-         total_frames += frame_count
-         wf.writeframes(audio_chunk)
-      duration = total_frames / wf.getframerate()
+    total_frames = 0
+    for audio_chunk in syn_tokens:
+        frame_count = len(audio_chunk) // 2
+        total_frames += frame_count
+        wf.writeframes(audio_chunk)
 
-      end_time = time.monotonic()
-      print(f"It took {end_time - start_time} seconds to generate {duration:.2f} seconds of audio")
-   ```
-#### Additional Functionality
+end_time = time.monotonic()
+print(f"Generated {total_frames / 24000:.2f}s of audio in {end_time - start_time:.2f}s")
+```
 
-1. Watermark your audio: Use Silent Cipher to watermark your audio generation; see [Watermark Audio Implementation](additional_inference_options/watermark_audio) for implementation.
+---
 
-2. For No GPU inference using Llama cpp see implementation [documentation](additional_inference_options/no_gpu/README.md) for implementation example
+## 🔥 Why This Fork?
 
+This fork modifies:
 
-#### Prompting
+* Engine config for **Tesla T4 compatibility**.
+* Model dtype to **float16** to save memory.
+* Includes a **monkeypatch** to bypass internal engine size limits in vLLM.
+* Designed for **quick testing and prototyping** on Colab.
 
-1. The `finetune-prod` models: for the primary model, your text prompt is formatted as `{name}: I went to the ...`. The options for name in order of conversational realism (subjective benchmarks) are "tara", "leah", "jess", "leo", "dan", "mia", "zac", "zoe". Our python package does this formatting for you, and the notebook also prepends the appropriate string. You can additionally add the following emotive tags: `<laugh>`, `<chuckle>`, `<sigh>`, `<cough>`, `<sniffle>`, `<groan>`, `<yawn>`, `<gasp>`.
+---
 
-2. The pretrained model: you can either generate speech just conditioned on text, or generate speech conditioned on one or more existing text-speech pairs in the prompt. Since this model hasn't been explicitly trained on the zero-shot voice cloning objective, the more text-speech pairs you pass in the prompt, the more reliably it will generate in the correct voice.
+## Core Capabilities (Same as Original)
 
-<!-- 3. The research model: the prompt that should get passed to the model has `prompt + " " + "<{emotion}>"` at the end. It should also not have the `{name}:` prefix as it is only trained on one voice. This model is not designed to be used in production. Rather, it's main goal is to show how LLMs can easily support tags to guide controllable emotional generations, and for now will perform worse on other metrics.
- -->
+* ✅ **Human-Like Speech**
+* ✅ **Zero-Shot Voice Cloning**
+* ✅ **Emotion Control Tags**
+* ✅ **Low Latency Streaming**
 
-Additionally, use regular LLM generation args like `temperature`, `top_p`, etc. as you expect for a regular LLM. `repetition_penalty>=1.1`is required for stable generations. Increasing `repetition_penalty` and `temperature` makes the model speak faster.
+> For full documentation of features, finetuning, and pretraining, refer to the [original README](https://github.com/canopyai/Orpheus-TTS).
 
+---
 
-## Finetune Model
+## 📌 Notes
 
-Here is an overview of how to finetune your model on any text and speech.
-This is a very simple process analogous to tuning an LLM using Trainer and Transformers.
+* This fork is ideal for **lightweight, personal use**, especially for **students, researchers, and hobbyists** using free-tier Colab.
+* For more advanced or production deployment, we recommend reviewing the full project capabilities from [Canopy AI](https://github.com/canopyai/Orpheus-TTS).
 
-You should start to see high quality results after ~50 examples but for best results, aim for 300 examples/speaker.
-
-1. Your dataset should be a huggingface dataset in [this format](https://huggingface.co/datasets/canopylabs/zac-sample-dataset)
-2. We prepare the data using [this notebook](https://colab.research.google.com/drive/1wg_CPCA-MzsWtsujwy-1Ovhv-tn8Q1nD?usp=sharing). This pushes an intermediate dataset to your Hugging Face account which you can can feed to the training script in finetune/train.py. Preprocessing should take less than 1 minute/thousand rows.
-3. Modify the `finetune/config.yaml` file to include your dataset and training properties, and run the training script. You can additionally run any kind of huggingface compatible process like Lora to tune the model.
-   ```bash
-    pip install transformers datasets wandb trl flash_attn torch
-    huggingface-cli login <enter your HF token>
-    wandb login <wandb token>
-    accelerate launch train.py
-   ```
-### Additional Resources
-1. [PEFT finetuning with unsloth](https://github.com/unslothai/notebooks/pull/17/files)
-   
-## Pretrain Model
-
-This is a very simple process analogous to training an LLM using Trainer and Transformers.
-
-The base model provided is trained over 100k hours. I recommend not using synthetic data for training as it produces worse results when you try to finetune specific voices, probably because synthetic voices lack diversity and map to the same set of tokens when tokenised (i.e. lead to poor codebook utilisation).
-
-We train the 3b model on sequences of length 8192 - we use the same dataset format for TTS finetuning for the <TTS-dataset> pretraining. We chain input_ids sequences together for more efficient training. The text dataset required is in the form described in this issue [#37 ](https://github.com/canopyai/Orpheus-TTS/issues/37). 
-
-If you are doing extended training this model, i.e. for another language or style we recommend starting with finetuning only (no text dataset). The main idea behind the text dataset is discussed in the blog post. (tldr; doesn't forget too much semantic/reasoning ability so its able to better understand how to intone/express phrases when spoken, however most of the forgetting would happen very early on in the training i.e. <100000 rows), so unless you are doing very extended finetuning it may not make too much of a difference.
-
-## Also Check out
-
-While we can't verify these implementations are completely accurate/bug free, they have been recommended on a couple of forums, so we include them here:
-
-1. [A lightweight client for running Orpheus TTS locally using LM Studio API](https://github.com/isaiahbjork/orpheus-tts-local)
-2. [Open AI compatible Fast-API implementation](https://github.com/Lex-au/Orpheus-FastAPI)
-3. [HuggingFace Space kindly set up by MohamedRashad](https://huggingface.co/spaces/MohamedRashad/Orpheus-TTS)
-4. [Gradio WebUI that runs smoothly on WSL and CUDA](https://github.com/Saganaki22/OrpheusTTS-WebUI)
-
-
-# Checklist
-
-- [x] Release 3b pretrained model and finetuned models
-- [ ] Release pretrained and finetuned models in sizes: 1b, 400m, 150m parameters
-- [ ] Fix glitch in realtime streaming package that occasionally skips frames.
-- [ ] Fix voice cloning Colab notebook implementation
+---
