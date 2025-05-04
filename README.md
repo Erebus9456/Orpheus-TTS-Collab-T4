@@ -12,9 +12,6 @@ Read more about the original project and comparisons with closed models like Ele
 
 ## 🚀 Quickstart on Colab (T4 Compatible)
 
-This forked version is hosted here:
-👉 [Orpheus-TTS-Collab-T4 (GitHub)](https://github.com/Erebus9456/Orpheus-TTS-Collab-T4)
-
 ### ✅ Setup
 
 ```python
